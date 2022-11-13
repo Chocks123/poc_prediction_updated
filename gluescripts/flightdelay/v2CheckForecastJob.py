@@ -1,0 +1,27 @@
+import sys
+import boto3
+import time
+from awsglue.utils import getResolvedOptions
+
+session = boto3.Session()
+forecast = session.client(service_name='forecast') 
+glue_client = session.client(service_name='glue')
+
+args = getResolvedOptions(sys.argv, ['WORKFLOW_NAME', 'WORKFLOW_RUN_ID'])
+workflowName = args['WORKFLOW_NAME']
+workflow = glue_client.get_workflow(Name=workflowName)
+workflowRunId = args['WORKFLOW_RUN_ID']
+workflow_params = glue_client.get_workflow_run_properties(Name=workflowName,
+                                        RunId=workflowRunId)["RunProperties"]
+
+forecastArn = workflow_params['forecastArn']
+# initialise forecast job status for while loop
+forecastStatus = forecast.describe_forecast(ForecastArn=forecastArn)['Status']
+
+while (forecastStatus != 'ACTIVE'):
+    forecastStatus = forecast.describe_forecast(ForecastArn=forecastArn)['Status']
+    if (forecastStatus == 'CREATE_FAILED'):
+        raise NameError('Forecast create failed')
+    time.sleep(10)
+
+print ('Forecast status is: ' + forecastStatus)
